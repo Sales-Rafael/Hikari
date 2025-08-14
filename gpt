@@ -1,0 +1,202 @@
+Perfeito! Vamos organizar tudo em um **passo a passo completo** e já vou fornecer os códigos finais, tanto do **Apps Script** quanto do **Arduino**. Esse setup fará com que **os LEDs das impressoras reflitam automaticamente o status do histórico da planilha**.
+
+---
+
+# **Passo a Passo Completo**
+
+## **1️⃣ Preparar o Google Sheets**
+
+* Tenha sua planilha com as abas:
+
+  * `Adicionar impressão`
+  * `Pedidos de Impressão`
+  * `Historico de Impressão`
+
+* Colunas importantes na aba `Historico de Impressão`:
+
+  * **B** → Impressora (A, B, C ou D)
+  * **G** → Finalizado? (“Não” ou “Sim”)
+
+* Certifique-se de que o script de registro da OS está funcionando (o que já fizemos anteriormente).
+
+---
+
+## **2️⃣ Criar Apps Script para enviar status das impressoras**
+
+1. Abra o editor do Apps Script da planilha (`Extensões > Apps Script`).
+2. Crie um novo projeto ou use o atual.
+3. Adicione a função abaixo:
+
+```javascript
+function doGet(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const abaHistorico = ss.getSheetByName("Historico de Impressão");
+  const dados = abaHistorico.getDataRange().getValues();
+  
+  // Status das impressoras, inicialmente todas livres
+  const status = { "A": "Sim", "B": "Sim", "C": "Sim", "D": "Sim" };
+  
+  for (let i = 1; i < dados.length; i++) { // Ignora cabeçalho
+    const impressora = dados[i][1].toString().trim().toUpperCase(); // Coluna B
+    const finalizado = dados[i][6].toString().trim().toUpperCase();  // Coluna G
+    if (impressora && finalizado === "NÃO") {
+      status[impressora] = "Não"; // Ocupada
+    }
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify(status))
+                       .setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+4. Publique como **Web App**:
+
+   * `Deploy > New Deployment`
+   * Tipo: `Web App`
+   * Executar como: `Você`
+   * Quem tem acesso: `Qualquer pessoa` (ou “Somente eu” se quiser restringir)
+5. Copie a **URL do Web App** – você vai usar no Arduino.
+
+---
+
+## **3️⃣ Configurar o Arduino (ESP32 ou ESP8266)**
+
+* LEDs da impressora (cada impressora tem 2 LEDs: vermelho = ocupado, verde = livre)
+
+* Código completo para controlar 4 impressoras baseado no status da planilha:
+
+```cpp
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+// Wi-Fi
+const char* ssid = "SEU_SSID";
+const char* password = "SUA_SENHA";
+const char* url = "SUA_URL_DO_WEBAPP"; // Copie do Apps Script
+
+// Impressora A
+int LEDVermelho_A = 2;
+int LEDVerde_A = 4;
+
+// Impressora B
+int LEDVermelho_B = 5;
+int LEDVerde_B = 6;
+
+// Impressora C
+int LEDVermelho_C = 14;
+int LEDVerde_C = 15;
+
+// Impressora D
+int LEDVermelho_D = 16;
+int LEDVerde_D = 17;
+
+void setup() {
+  Serial.begin(115200);
+
+  // LEDs impressoras
+  pinMode(LEDVermelho_A, OUTPUT); pinMode(LEDVerde_A, OUTPUT);
+  pinMode(LEDVermelho_B, OUTPUT); pinMode(LEDVerde_B, OUTPUT);
+  pinMode(LEDVermelho_C, OUTPUT); pinMode(LEDVerde_C, OUTPUT);
+  pinMode(LEDVermelho_D, OUTPUT); pinMode(LEDVerde_D, OUTPUT);
+
+  // Conectar Wi-Fi
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando ao Wi-Fi");
+  while(WiFi.status() != WL_CONNECTED){
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConectado ao Wi-Fi");
+}
+
+void loop() {
+  if(WiFi.status() == WL_CONNECTED){
+    HTTPClient http;
+    http.begin(url);
+    int code = http.GET();
+
+    if(code > 0){
+      String payload = http.getString();
+      Serial.println(payload);
+
+      StaticJsonDocument<200> doc;
+      DeserializationError error = deserializeJson(doc, payload);
+      if(!error){
+        // Impressora A
+        String statusA = doc["A"];
+        if(statusA == "Não"){ // Ocupada
+          digitalWrite(LEDVermelho_A, HIGH);
+          digitalWrite(LEDVerde_A, LOW);
+        } else {            // Livre
+          digitalWrite(LEDVermelho_A, LOW);
+          digitalWrite(LEDVerde_A, HIGH);
+        }
+
+        // Impressora B
+        String statusB = doc["B"];
+        if(statusB == "Não"){
+          digitalWrite(LEDVermelho_B, HIGH);
+          digitalWrite(LEDVerde_B, LOW);
+        } else {
+          digitalWrite(LEDVermelho_B, LOW);
+          digitalWrite(LEDVerde_B, HIGH);
+        }
+
+        // Impressora C
+        String statusC = doc["C"];
+        if(statusC == "Não"){
+          digitalWrite(LEDVermelho_C, HIGH);
+          digitalWrite(LEDVerde_C, LOW);
+        } else {
+          digitalWrite(LEDVermelho_C, LOW);
+          digitalWrite(LEDVerde_C, HIGH);
+        }
+
+        // Impressora D
+        String statusD = doc["D"];
+        if(statusD == "Não"){
+          digitalWrite(LEDVermelho_D, HIGH);
+          digitalWrite(LEDVerde_D, LOW);
+        } else {
+          digitalWrite(LEDVermelho_D, LOW);
+          digitalWrite(LEDVerde_D, HIGH);
+        }
+      }
+    } else {
+      Serial.println("Erro na requisição HTTP");
+    }
+
+    http.end();
+  }
+
+  delay(5000); // Atualiza a cada 5 segundos
+}
+```
+
+---
+
+## **4️⃣ Testar**
+
+1. Abra a planilha e adicione algumas OSs com `Finalizado? = Não` e `Sim`.
+
+2. O Arduino deve acender automaticamente:
+
+   * **Vermelho** = impressora ocupada (`Não`)
+   * **Verde** = impressora livre (`Sim`)
+
+3. Atualize o status no histórico e veja os LEDs mudarem em até 5 segundos (conforme `delay`).
+
+---
+
+✅ **Resultado final**
+
+* Impressoras refletem em tempo real o status da planilha.
+* Não depende mais dos botões.
+* Pode ser expandido para mais LEDs ou funcionalidades futuras.
+
+---
+
+Se você quiser, posso fazer **uma versão mista**: LEDs controlados pela planilha **e ainda mantendo os botões manuais**, assim você pode atualizar tanto pelo Arduino quanto pela planilha.
+
+Quer que eu faça isso?
