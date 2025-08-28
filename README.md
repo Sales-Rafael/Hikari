@@ -1,6 +1,6 @@
-# Sistema Andon + Planilhas Dinâmicas – DSPi SENAI Itabira
+# Sistema Andon + Planilhas Dinâmicas – DSPI SENAI
 
-Este projeto foi desenvolvido durante o **Desafio de Projetos de Inovação (DSPi) do SENAI Itabira**.  
+Este projeto foi desenvolvido durante o **Desafio SENAI de Projetos Integradores(DSPI) do SENAI**.  
 O objetivo foi otimizar o **fluxo de impressão** e melhorar a **comunicação interna** entre setores de produção.
 
 ## 🚩 Problema
@@ -22,9 +22,6 @@ O sistema sinaliza o status das máquinas em tempo real e permite redistribuir o
 - **Protoboard, resistores, LEDs e fios jumper**  
 - **Google Sheets + API**  
 - **Corte a laser para prototipagem**
-
-## 📸 Protótipo
-Imagens e vídeos do protótipo funcional podem ser encontrados em [`/prototipo`](./prototipo).
 
 ## 📈 Resultados
 - Comunicação visual clara entre setores  
